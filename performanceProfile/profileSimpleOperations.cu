@@ -7,7 +7,8 @@
 
 #define initializingMode_ 0
 #define dataBlockSize_ 16*1024*1024
-#define totalLoop_ 1024*2
+//#define totalLoop_ 1024*2
+#define totalLoop_ 16*3
 
 /**
  * This macro checks return value of the CUDA runtime call and exits
@@ -78,11 +79,11 @@ void profileAddtionOnDevice(unsigned int nElement, unsigned int totalLoop) {
 	unsigned int nBytes = nElement * sizeof(float);
 
 	if (nBytes < 1024) {
-		printf("Allocate nbytes is %d B.\n", nBytes);
+		printf("==== Allocate nbytes is %d B.\n", nBytes);
 	} else if (nBytes >= 1024 && nBytes < 1024*1024) {
-		printf("Allocate nbytes is %d KB.\n", nBytes/1024);
+		printf("==== Allocate nbytes is %d KB.\n", nBytes/1024);
 	} else {
-		printf("Allocate nbytes is %d MB.\n", nBytes/(1024*1024));
+		printf("==== Allocate nbytes is %d MB.\n", nBytes/(1024*1024));
 	}
 
 	//profile device memory as the basement
@@ -120,10 +121,12 @@ void profileAddtionOnDevice(unsigned int nElement, unsigned int totalLoop) {
 
 	//Check the accuracy
 	float ans = 4.0f;
-	//printf("===== ans is %f\n", ans);
+	float *reslut = (float *)malloc(nBytes);
+	CHECK_CUDA_RESULT(cudaMemcpy(reslut, memoryOnDevice_C, nBytes, cudaMemcpyDeviceToHost));
+
 	int jj;
 	for (jj = 0; jj < nElement; jj++) {
-		if (memoryOnDevice_C[jj] != ans)
+		if (reslut[jj] != ans)
 		{
 			printf("Error happens, should enable DEBUG mode to investigate.\n");
 			break;
@@ -143,11 +146,11 @@ void profileAddtionOnUM (unsigned int nElement, unsigned int totalLoop) {
 	unsigned int nBytes = nElement * sizeof(float);
 
 	if (nBytes < 1024) {
-		printf("Allocate nbytes is %d B.\n", nBytes);
+		printf("==== Allocate nbytes is %d B.\n", nBytes);
 	} else if (nBytes >= 1024 && nBytes < 1024*1024) {
-		printf("Allocate nbytes is %d KB.\n", nBytes/1024);
+		printf("==== Allocate nbytes is %d KB.\n", nBytes/1024);
 	} else {
-		printf("Allocate nbytes is %d MB.\n", nBytes/(1024*1024));
+		printf("==== Allocate nbytes is %d MB.\n", nBytes/(1024*1024));
 	}
 
 	// allocate memory
@@ -244,9 +247,9 @@ void profileAddtionOnUM (unsigned int nElement, unsigned int totalLoop) {
 
 void profileAdditionOperation(int dev) {
 	int totalLoop = totalLoop_;
-	printf("==== ==== Profile Addtion On Device.\n");
+	printf("\n==== ==== Profile Addtion On Device.\n");
 	profileAddtionOnDevice(dataBlockSize_, totalLoop);
-	printf("==== ==== Profile Addtion On Unified Memory.\n");
+	printf("\n==== ==== Profile Addtion On Unified Memory.\n");
 	profileAddtionOnUM(dataBlockSize_, totalLoop);
 }
 
