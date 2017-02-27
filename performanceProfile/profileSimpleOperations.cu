@@ -243,8 +243,8 @@ void test_cudaMallocManaged(int dev, int ipower) {
 
 	int totalLoop = totalLoop_;
 
-	profileAddtion(dataBlockSize_, totalLoop);
 	profileAddtionBasement(dataBlockSize_, totalLoop);
+	profileAddtion(dataBlockSize_, totalLoop);
 }
 
 int main(int argc, char* argv[]) {
