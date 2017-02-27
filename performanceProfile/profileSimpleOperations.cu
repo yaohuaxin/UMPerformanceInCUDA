@@ -78,6 +78,16 @@ void initialData(float *A, unsigned int n, float data, int mode = 0) {
 }
 
 void profileAddtionBasement(unsigned int nElement, unsigned int totalLoop) {
+	unsigned int nBytes = nElement * sizeof(float);
+
+	if (nBytes < 1024) {
+		printf("Allocate nbytes is %d B.\n", nBytes);
+	} else if (nBytes >= 1024 && nBytes < 1024*1024) {
+		printf("Allocate nbytes is %d KB.\n", nBytes/1024);
+	} else {
+		printf("Allocate nbytes is %d MB.\n", nBytes/(1024*1024));
+	}
+
 	//profile device memory as the basement
 	float *memoryOnDevice_A, *memoryOnDevice_B, *memoryOnDevice_C;
 	CHECK_CUDA_RESULT(cudaMalloc(&memoryOnDevice_A, nBytes));
@@ -85,9 +95,9 @@ void profileAddtionBasement(unsigned int nElement, unsigned int totalLoop) {
 	CHECK_CUDA_RESULT(cudaMalloc(&memoryOnDevice_C, nBytes));
 
 	printf("===== inital data begins...\n");
+	int mode = initializingMode_;
 	double iStart = currentTimeCPUSecond();
 	{
-		int mode = initializingMode_;
 		initialData(memoryOnDevice_A, nElement, 2.0f, mode);
 		initialData(memoryOnDevice_B, nElement, 2.0f, mode);
 		initialData(memoryOnDevice_C, nElement, 0.0f, mode);
@@ -138,10 +148,9 @@ void profileAddtion (unsigned int nElement, unsigned int totalLoop) {
 	}
 
 	printf("===== inital data begins...\n");
+	int mode = initializingMode_;
 	double iStart = currentTimeCPUSecond();
 	for (int loop=0; loop<totalLoop; loop++) {
-		int mode = initializingMode_;
-
 		initialData(g_A[loop], nElement, 2.0f, mode);
 		initialData(g_B[loop], nElement, 2.0f, mode);
 		initialData(g_C[loop], nElement, 0.0f, mode);
