@@ -29,15 +29,12 @@
  */
 __global__ void vecInit(float *A, float value) {
 	unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
-	//printf("In GPU: %f.\n", value);
 	A[i] = value;
-
 }
 
 __global__ void vecAdd(float* A, float* B, float* C) {
 	unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	C[i] = A[i] + B[i];
-	//printf("In GPU:\n");
 }
 
 __global__ void vecMultiply(float* A, float* B, float* C) {
@@ -56,7 +53,7 @@ double currentTimeCPUSecond() {
 	return ((double) tp.tv_sec + (double) tp.tv_usec * 1.e-6);
 }
 
-void test_cudaDeviceGetAttribute(int* value, cudaDeviceAttr attr, int device) {
+void getCudaDeviceAttribute(int* value, cudaDeviceAttr attr, int device) {
 	cudaDeviceGetAttribute(value, attr, device);
 }
 
@@ -77,7 +74,7 @@ void initialData(float *A, unsigned int n, float data, int mode = 0) {
 	}
 }
 
-void profileAddtionBasement(unsigned int nElement, unsigned int totalLoop) {
+void profileAddtionOnDevice(unsigned int nElement, unsigned int totalLoop) {
 	unsigned int nBytes = nElement * sizeof(float);
 
 	if (nBytes < 1024) {
@@ -121,12 +118,28 @@ void profileAddtionBasement(unsigned int nElement, unsigned int totalLoop) {
 	iStop = currentTimeCPUSecond();
 	printf("==== Time for adding the data: %f.\n", (iStop - iStart)*totalLoop);
 
+	//Check the accuracy
+	float ans = 4.0f;
+	//printf("===== ans is %f\n", ans);
+	int jj;
+	for (jj = 0; jj < nElement; jj++) {
+		if (memoryOnDevice_C[jj] != ans)
+		{
+			printf("Error happens, should enable DEBUG mode to investigate.\n");
+			break;
+		}
+	}
+
+	if(jj==nElement) {
+		printf("==== Testing is passed.\n");
+	}
+
 	cudaFree(memoryOnDevice_A);
 	cudaFree(memoryOnDevice_B);
 	cudaFree(memoryOnDevice_C);
 }
 
-void profileAddtion (unsigned int nElement, unsigned int totalLoop) {
+void profileAddtionOnUM (unsigned int nElement, unsigned int totalLoop) {
 	unsigned int nBytes = nElement * sizeof(float);
 
 	if (nBytes < 1024) {
@@ -189,7 +202,7 @@ void profileAddtion (unsigned int nElement, unsigned int totalLoop) {
 	}
 
 	if(ii==totalLoop && jj==nElement) {
-		printf("Testing is passed.\n");
+		printf("==== Testing is passed.\n");
 	}
 
 #ifdef DEBUG
@@ -229,22 +242,12 @@ void profileAddtion (unsigned int nElement, unsigned int totalLoop) {
 
 
 
-void test_cudaMallocManaged(int dev, int ipower) {
-	int val;
-
-	// Check if supports managed memory
-	CHECK_CUDA_RESULT(cudaDeviceGetAttribute(&val, cudaDevAttrManagedMemory, dev));
-
-	// Check concurrent managed access, for cuda 8.0
-	cudaDeviceGetAttribute(&val, cudaDevAttrConcurrentManagedAccess, dev);
-	if (!val) {
-		printf("*** Warn: Concurrent managed access is not supported!\n");
-	}
-
+void profileAdditionOperation(int dev) {
 	int totalLoop = totalLoop_;
-
-	profileAddtionBasement(dataBlockSize_, totalLoop);
-	profileAddtion(dataBlockSize_, totalLoop);
+	printf("==== ==== Profile Addtion On Device.\n");
+	profileAddtionOnDevice(dataBlockSize_, totalLoop);
+	printf("==== ==== Profile Addtion On Unified Memory.\n");
+	profileAddtionOnUM(dataBlockSize_, totalLoop);
 }
 
 int main(int argc, char* argv[]) {
@@ -265,13 +268,13 @@ int main(int argc, char* argv[]) {
 		exit(EXIT_SUCCESS);
 	}
 
-	// set up date size of vectors
-	int ipower = 20+4;
-	if (argc > 1)
-		ipower = atoi(argv[1]);
+	// Check if supports managed memory
+	//CHECK_CUDA_RESULT(cudaDeviceGetAttribute(&val, cudaDevAttrManagedMemory, dev));
 
-	test_cudaMallocManaged(dev, ipower);
+	// Check concurrent managed access, for cuda 8.0
+	//CHECK_CUDA_RESULT(cudaDeviceGetAttribute(&val, cudaDevAttrConcurrentManagedAccess, dev));
 
+	profileAdditionOperation(dev);
 
 	cudaDeviceReset();
 }
