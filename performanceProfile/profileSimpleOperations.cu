@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <sys/time.h>
 
+#define initializingMode_ 0
+#define dataBlockSize_ 16*1024*1024
+#define totalLoop_ 1024*2
 
 /**
  * This macro checks return value of the CUDA runtime call and exits
@@ -74,6 +77,45 @@ void initialData(float *A, unsigned int n, float data, int mode = 0) {
 	}
 }
 
+void profileAddtionBasement(unsigned int nElement, unsigned int totalLoop) {
+	//profile device memory as the basement
+	float *memoryOnDevice_A, *memoryOnDevice_B, *memoryOnDevice_C;
+	CHECK_CUDA_RESULT(cudaMalloc(&memoryOnDevice_A, nBytes));
+	CHECK_CUDA_RESULT(cudaMalloc(&memoryOnDevice_B, nBytes));
+	CHECK_CUDA_RESULT(cudaMalloc(&memoryOnDevice_C, nBytes));
+
+	printf("===== inital data begins...\n");
+	double iStart = currentTimeCPUSecond();
+	{
+		int mode = initializingMode_;
+		initialData(memoryOnDevice_A, nElement, 2.0f, mode);
+		initialData(memoryOnDevice_B, nElement, 2.0f, mode);
+		initialData(memoryOnDevice_C, nElement, 0.0f, mode);
+	}
+	double iStop = currentTimeCPUSecond();
+	if (mode == 0) {
+		printf("==== GPU mode: time for initializing the data: %f.\n", (iStop - iStart)*totalLoop);
+	} else {
+		printf("==== CPU mode: time for initializing the data: %f.\n", (iStop - iStart)*totalLoop);
+	}
+
+	printf("===== add data begins...\n");
+	iStart = currentTimeCPUSecond();
+	{
+		dim3 threadsPerBlock(1024);
+		dim3 numBlocks((nElement+threadsPerBlock.x-1) / threadsPerBlock.x);
+		vecAdd<<<numBlocks, threadsPerBlock>>>(memoryOnDevice_A, memoryOnDevice_B, memoryOnDevice_C);
+		//cudaMemcpy(g_C[loop], g_A[loop], nElem, cudaMemcpyDeviceToDevice);
+		cudaDeviceSynchronize();
+	}
+	iStop = currentTimeCPUSecond();
+	printf("==== Time for adding the data: %f.\n", (iStop - iStart)*totalLoop);
+
+	cudaFree(memoryOnDevice_A);
+	cudaFree(memoryOnDevice_B);
+	cudaFree(memoryOnDevice_C);
+}
+
 void profileAddtion (unsigned int nElement, unsigned int totalLoop) {
 	unsigned int nBytes = nElement * sizeof(float);
 
@@ -87,39 +129,41 @@ void profileAddtion (unsigned int nElement, unsigned int totalLoop) {
 
 	// allocate memory
 	float *g_A[64*1024], *g_B[64*1024], *g_C[64*1024];
-
 	for (int loop=0; loop<totalLoop; loop++) {
-		printf("==== ==== ==== ==== Loop: %d.\n", loop);
-
 		// unsigned int flags = cudaMemAttachHost;
 		unsigned int flags = cudaMemAttachGlobal;
 		CHECK_CUDA_RESULT(cudaMallocManaged(&g_A[loop], nBytes, flags));
 		CHECK_CUDA_RESULT(cudaMallocManaged(&g_B[loop], nBytes, flags));
 		CHECK_CUDA_RESULT(cudaMallocManaged(&g_C[loop], nBytes, flags));
+	}
 
-		printf("===== inital data begins...\n");
-		int mode = 0;
-		double iStart = currentTimeCPUSecond();
+	printf("===== inital data begins...\n");
+	double iStart = currentTimeCPUSecond();
+	for (int loop=0; loop<totalLoop; loop++) {
+		int mode = initializingMode_;
+
 		initialData(g_A[loop], nElement, 2.0f, mode);
 		initialData(g_B[loop], nElement, 2.0f, mode);
 		initialData(g_C[loop], nElement, 0.0f, mode);
-		double iStop = currentTimeCPUSecond();
-		if (mode == 0) {
-			printf("==== GPU mode: time for initializing the data: %f.\n", iStop - iStart);
-		} else {
-			printf("==== CPU mode: time for initializing the data: %f.\n", iStop - iStart);
-		}
+	}
+	double iStop = currentTimeCPUSecond();
+	if (mode == 0) {
+		printf("==== GPU mode: time for initializing the data: %f.\n", iStop - iStart);
+	} else {
+		printf("==== CPU mode: time for initializing the data: %f.\n", iStop - iStart);
+	}
 
-		printf("===== add data begins...\n");
-		iStart = currentTimeCPUSecond();
+	printf("===== add data begins...\n");
+	iStart = currentTimeCPUSecond();
+	for (int loop=0; loop<totalLoop; loop++) {
 		dim3 threadsPerBlock(1024);
 		dim3 numBlocks((nElement+threadsPerBlock.x-1) / threadsPerBlock.x);
 		vecAdd<<<numBlocks, threadsPerBlock>>>(g_A[loop], g_B[loop], g_C[loop]);
 		//cudaMemcpy(g_C[loop], g_A[loop], nElem, cudaMemcpyDeviceToDevice);
 		cudaDeviceSynchronize();
-		iStop = currentTimeCPUSecond();
-		printf("==== Time for adding the data: %f.\n", iStop - iStart);
 	}
+	iStop = currentTimeCPUSecond();
+	printf("==== Time for adding the data: %f.\n", iStop - iStart);
 
 	//Check the accuracy
 	float ans = 4.0f;
@@ -188,12 +232,10 @@ void test_cudaMallocManaged(int dev, int ipower) {
 		printf("*** Warn: Concurrent managed access is not supported!\n");
 	}
 
-	int totalLoop = 1024*2;
-	//int totalLoop = 10;
+	int totalLoop = totalLoop_;
 
-	profileAddtion(16*1024*1024, totalLoop);
-
-	cudaDeviceReset();
+	profileAddtion(dataBlockSize_, totalLoop);
+	profileAddtionBasement(dataBlockSize_, totalLoop);
 }
 
 int main(int argc, char* argv[]) {
@@ -221,5 +263,7 @@ int main(int argc, char* argv[]) {
 
 	test_cudaMallocManaged(dev, ipower);
 
+
+	cudaDeviceReset();
 }
 
